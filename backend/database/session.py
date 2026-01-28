@@ -1,5 +1,5 @@
 from sqlalchemy import create_engine
-from sqlalchemy.pool import QueuePool
+from sqlalchemy.pool import NullPool
 from sqlmodel import Session
 from typing import Generator
 import os
@@ -7,13 +7,11 @@ from core.config import settings
 
 
 # Create the database engine
+# Use NullPool for serverless environments (Vercel) - no persistent connections
 engine = create_engine(
     settings.DATABASE_URL,
-    poolclass=QueuePool,
-    pool_size=10,
-    max_overflow=20,
+    poolclass=NullPool,  # Serverless-friendly: no connection pooling
     pool_pre_ping=True,
-    pool_recycle=300,
 )
 
 

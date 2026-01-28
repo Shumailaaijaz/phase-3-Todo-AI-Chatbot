@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
 from typing import List
 
 class Settings(BaseSettings):
@@ -12,18 +13,28 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = ""
 
     # JWT
-    JWT_SECRET: str
-    JWT_ALGORITHM: str
-    JWT_EXPIRE_DAYS: int
+    JWT_SECRET: str = ""
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRE_DAYS: int = 7
 
     # App
-    ENVIRONMENT: str
-    DEBUG: bool
+    ENVIRONMENT: str = "production"
+    DEBUG: bool = False
 
     # Database & Auth
-    DATABASE_URL: str
-    VITE_NEON_AUTH_URL: str
-    BETTER_AUTH_SECRET: str
+    DATABASE_URL: str = ""  # Required - must be set in environment
+    VITE_NEON_AUTH_URL: str = ""
+    BETTER_AUTH_SECRET: str = ""
+
+    @field_validator("DATABASE_URL")
+    @classmethod
+    def validate_database_url(cls, v: str) -> str:
+        if not v:
+            raise ValueError(
+                "DATABASE_URL environment variable is required. "
+                "Please set it in Vercel project settings or .env file."
+            )
+        return v
 
     @property
     def cors_origins_list(self) -> List[str]:
