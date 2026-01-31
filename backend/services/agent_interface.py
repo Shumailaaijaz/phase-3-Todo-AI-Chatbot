@@ -4,6 +4,9 @@ Wires the OpenAI-powered AgentRunner with MCP tools for task management.
 Imports are deferred to avoid double-loading SQLModel tables.
 """
 from typing import List, Dict, Any, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class ChatAgentRunner:
@@ -27,7 +30,10 @@ class ChatAgentRunner:
         )
 
     def process(self, messages: List[Dict[str, Any]], user_id: str = "", conversation_id: str = "") -> str:
-        """Sync wrapper - runs the async agent and returns response text."""
+        """Sync wrapper - runs the async agent and returns response text.
+
+        Always returns a response string, even for errors (user-friendly error messages).
+        """
         import asyncio
         from agent.context import AgentContext, AgentResult
 
@@ -51,11 +57,19 @@ class ChatAgentRunner:
             with concurrent.futures.ThreadPoolExecutor() as pool:
                 result: AgentResult = pool.submit(
                     asyncio.run, self._runner.run(context, last_message)
-                ).result()
-        except Exception as e:
-            return f"Sorry, something went wrong: {str(e)}"
+                ).result(timeout=60)  # 60 second timeout
 
-        return result.response
+            # Return the response regardless of success/failure
+            # The runner returns user-friendly error messages
+            return result.response
+
+        except concurrent.futures.TimeoutError:
+            logger.error("Agent execution timed out after 60 seconds")
+            return "Request timed out. Please try again."
+        except Exception as e:
+            logger.exception(f"Agent interface error: {e}")
+            # Return the error message to the user for debugging
+            return f"Error: {str(e)}"
 
 
 _agent_instance: Optional[ChatAgentRunner] = None
