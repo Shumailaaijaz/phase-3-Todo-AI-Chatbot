@@ -1,18 +1,18 @@
 """Agent interface for chat processing.
 
-Wires the real AgentRunner with MCP tools for task management.
+Wires the OpenAI-powered AgentRunner with MCP tools for task management.
 Imports are deferred to avoid double-loading SQLModel tables.
 """
 from typing import List, Dict, Any, Optional
 
 
 class ChatAgentRunner:
-    """Wraps the real AgentRunner for use by the chat endpoint."""
+    """Wraps the OpenAI AgentRunner for use by the chat endpoint."""
 
     def __init__(self):
         # Lazy import to avoid circular / double-registration issues
         from mcp.server import MCPToolServer
-        from agent.runner import AgentRunner
+        from agent.openai_runner import OpenAIAgentRunner
         from database.session import engine
 
         # get_session is a generator (FastAPI dep), MCP tools need a plain factory
@@ -21,7 +21,7 @@ class ChatAgentRunner:
             return Session(engine)
 
         self._mcp_server = MCPToolServer(session_factory=session_factory)
-        self._runner = AgentRunner(
+        self._runner = OpenAIAgentRunner(
             session_factory=session_factory,
             mcp_server=self._mcp_server,
         )

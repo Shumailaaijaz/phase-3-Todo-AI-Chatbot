@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     VITE_NEON_AUTH_URL: str = ""
     BETTER_AUTH_SECRET: str = ""
 
+    # OpenAI
+    OPENAI_API_KEY: str = ""  # Required for AI chatbot features
+    OPENAI_MODEL: str = "gpt-4o-mini"  # Default model (cost-effective)
+
     @field_validator("DATABASE_URL")
     @classmethod
     def validate_database_url(cls, v: str) -> str:
