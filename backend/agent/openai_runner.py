@@ -134,9 +134,9 @@ class OpenAIAgentRunner:
             messages = [{"role": "system", "content": SYSTEM_PROMPT}]
 
             # Add conversation history (last 10 messages for context)
-            for msg in context.messages[-10:]:
-                role = msg.get("role", "user")
-                content = msg.get("content", "")
+            for msg in context.message_history[-10:]:
+                role = msg.role
+                content = msg.content
                 if role in ["user", "assistant"] and content:
                     messages.append({"role": role, "content": content})
 
