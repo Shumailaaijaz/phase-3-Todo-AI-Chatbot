@@ -106,11 +106,13 @@ async def send_chat_message(
     # Call agent interface
     try:
         agent = get_agent_runner()
-        response_text = agent.process(
+        agent_result = agent.process(
             agent_messages,
             user_id=user_id,
             conversation_id=conversation.id,
         )
+        response_text = agent_result["response"]
+        tool_calls = agent_result.get("tool_calls", [])
     except Exception as e:
         raise ProcessingError(str(e))
 
@@ -134,7 +136,8 @@ async def send_chat_message(
         conversation_id=conversation.id,
         user_message_id=user_message.id,
         assistant_message_id=assistant_message.id,
-        response=response_text
+        response=response_text,
+        tool_calls=tool_calls if tool_calls else None
     )
 
 

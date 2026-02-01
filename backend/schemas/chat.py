@@ -29,12 +29,20 @@ class ChatRequest(BaseModel):
 
 # ==================== Response Schemas ====================
 
+class ToolCallResponse(BaseModel):
+    """Response schema for a tool call."""
+    tool_name: str = Field(..., description="Name of the tool called")
+    status: str = Field(default="completed", description="Status: pending, completed, error")
+    summary: str = Field(default="", description="Human-readable summary")
+
+
 class ChatResponse(BaseModel):
     """Response schema for chat endpoint."""
     conversation_id: str = Field(..., description="Conversation UUID")
     user_message_id: str = Field(..., description="User message UUID")
     assistant_message_id: str = Field(..., description="Assistant message UUID")
     response: str = Field(..., description="Assistant's text response")
+    tool_calls: Optional[List[ToolCallResponse]] = Field(default=None, description="Tool calls made")
 
 
 class MessageResponse(BaseModel):

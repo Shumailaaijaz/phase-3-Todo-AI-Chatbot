@@ -8,52 +8,46 @@ Uses GPT-4 with function calling to:
 
 import json
 import logging
-import os
 from typing import Callable, Dict, Any, List, Optional
 
 from sqlmodel import Session
 
 from agent.context import AgentContext, AgentResult, ToolCallRecord
 from mcp.server import MCPToolServer, get_tool_definitions
+from core.config import settings
 
 logger = logging.getLogger(__name__)
 
 # System prompt for the AI assistant - Multilingual support
 SYSTEM_PROMPT = """You are a helpful, friendly AI assistant that can answer ANY question and also manage tasks.
 
-## IMPORTANT - Language Rules:
-- Detect the language the user is speaking (English, Urdu, or Roman Urdu)
-- ALWAYS respond in the SAME language the user used
-- If user writes in Urdu script (اردو), respond in Urdu script
-- If user writes in Roman Urdu (like "kya haal hai"), respond in Roman Urdu
-- If user writes in English, respond in English
+## Language Rules:
+- Detect user's language (English, Urdu, Roman Urdu) and respond in the SAME language
+- Urdu script (اردو) → respond in Urdu script
+- Roman Urdu (like "kya haal hai") → respond in Roman Urdu
+- English → respond in English
 
 ## Your Capabilities:
-1. **Answer ANY Question**: Science, history, coding, math, life advice, jokes, stories, explanations - ANYTHING!
-2. **Task Management**: Help users manage their to-do list using the available tools.
+1. **Answer ANY Question**: Science, history, coding, math, life advice, jokes - ANYTHING!
+2. **Task Management**: Use the provided tools for task operations.
 
-## Task Management Tools (use ONLY for task operations):
-- `add_task`: Create a new task (use when user wants to add/create a task)
-- `list_tasks`: Show all tasks (use when user wants to see their tasks)
-- `complete_task`: Mark a task as done (use when user says task is done/complete)
-- `delete_task`: Remove a task (use when user wants to delete/remove a task)
-- `update_task`: Modify a task (use when user wants to change a task)
+## When to Use Tools:
+- "add task X" / "create task" / "new task" → call add_task tool with title
+- "list tasks" / "show tasks" / "my tasks" / "tasks dikhao" → call list_tasks tool
+- "complete task" / "mark done" / "task done" → call complete_task tool
+- "delete task" / "remove task" → call delete_task tool
+- "update task" / "edit task" → call update_task tool
 
-## Guidelines:
-- Be conversational, helpful, and friendly
-- For general questions (who am I, what is X, explain Y), answer DIRECTLY - do NOT use tools
-- For task operations, use the appropriate tool
-- When user asks about themselves (who am I), explain you're an AI assistant
-- Support conversations in any language
+## When NOT to Use Tools (answer directly):
+- General questions: "what is X", "who are you", "tell me about Y"
+- Math: "2+2", calculations
+- Jokes, stories, advice
+- Greetings: "hi", "hello"
 
-## Examples:
-- "What is Python?" → Answer directly about Python programming language
-- "who am I" → Explain that you're an AI and can help them
-- "Add task buy milk" → Use add_task tool
-- "mujhe apne tasks dikhao" → Use list_tasks tool, respond in Roman Urdu
-- "آپ کون ہیں" → Answer in Urdu script
-- "Tell me a joke" → Tell a joke directly
-- "2+2 kya hota hai" → Answer "4 hota hai" in Roman Urdu
+## Important:
+- For task operations, you MUST use the function calling mechanism
+- Do NOT write function calls as text - use the tool_calls API feature
+- Always be helpful and conversational
 """
 
 
@@ -91,27 +85,35 @@ class OpenAIAgentRunner:
         self._client = None
 
     def _get_client(self):
-        """Lazy initialization of OpenAI client."""
+        """Lazy initialization of OpenAI client (supports Groq as free alternative)."""
         if self._client is None:
             # Import here to avoid issues if openai not installed
             from openai import OpenAI
 
-            # Try multiple env var names
-            api_key = os.environ.get("OPENAI_API_KEY", "")
-
-            if not api_key:
-                raise ValueError(
-                    "OPENAI_API_KEY environment variable is not set. "
-                    "Please add it in Vercel Project Settings > Environment Variables."
+            # Prefer Groq (free) over OpenAI
+            if settings.GROQ_API_KEY:
+                logger.info("Using Groq API (free tier)...")
+                self._client = OpenAI(
+                    api_key=settings.GROQ_API_KEY,
+                    base_url="https://api.groq.com/openai/v1"
                 )
-
-            logger.info("Initializing OpenAI client...")
-            self._client = OpenAI(api_key=api_key)
+                self._use_groq = True
+            elif settings.OPENAI_API_KEY:
+                logger.info("Using OpenAI API...")
+                self._client = OpenAI(api_key=settings.OPENAI_API_KEY)
+                self._use_groq = False
+            else:
+                raise ValueError(
+                    "No API key configured. Please set GROQ_API_KEY (free) or OPENAI_API_KEY "
+                    "in Vercel Project Settings > Environment Variables."
+                )
         return self._client
 
     def _get_model(self) -> str:
-        """Get the model name from environment."""
-        return os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+        """Get the model name from settings."""
+        if getattr(self, '_use_groq', False) or settings.GROQ_API_KEY:
+            return settings.GROQ_MODEL or "llama-3.3-70b-versatile"
+        return settings.OPENAI_MODEL
 
     async def run(
         self,

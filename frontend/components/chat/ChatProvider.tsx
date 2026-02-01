@@ -23,6 +23,7 @@ import {
   getConversation,
   ChatAPIError,
 } from '@/lib/api/chat';
+import { dispatchTaskUpdated } from '@/lib/events/taskEvents';
 
 // ============================================================================
 // Context
@@ -257,6 +258,18 @@ export function ChatProvider({
           tool_calls: response.tool_calls,
         };
         dispatch({ type: 'ADD_MESSAGE', payload: assistantMessage });
+
+        // Notify dashboard if task tools were used
+        if (response.tool_calls && response.tool_calls.length > 0) {
+          const taskAction = response.tool_calls[0]?.tool_name?.includes('delete')
+            ? 'delete'
+            : response.tool_calls[0]?.tool_name?.includes('complete')
+            ? 'complete'
+            : response.tool_calls[0]?.tool_name?.includes('update')
+            ? 'update'
+            : 'add';
+          dispatchTaskUpdated(taskAction);
+        }
 
         // Update active conversation if this was a new conversation
         if (!state.activeConversationId && response.conversation_id) {

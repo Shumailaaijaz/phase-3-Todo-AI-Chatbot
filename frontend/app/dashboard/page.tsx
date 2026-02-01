@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { toast } from "sonner";
+import { onTaskUpdated } from "@/lib/events/taskEvents";
 import {
   Trash2, CheckCircle2, Circle, Search, ClipboardList,
   Pencil, Calendar, Plus, Sparkles, Target, TrendingUp
@@ -30,23 +31,40 @@ export default function Dashboard() {
     } catch (e) { router.push("/login"); }
   }, [router]);
 
-  const fetchTodos = async () => {
+  const fetchTodos = useCallback(async () => {
     if (!userId) return;
     const token = localStorage.getItem("token");
-    const res = await fetch(`http://localhost:8000/api/${userId}/tasks`, {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/${userId}/tasks`, {
       headers: { "Authorization": `Bearer ${token}` }
     });
     if (res.ok) setTodos(await res.json());
     setLoading(false);
-  };
+  }, [userId]);
 
-  useEffect(() => { if (userId) fetchTodos(); }, [userId]);
+  useEffect(() => { if (userId) fetchTodos(); }, [userId, fetchTodos]);
+
+  // Auto-refresh when chatbot modifies tasks
+  useEffect(() => {
+    const cleanup = onTaskUpdated((detail) => {
+      fetchTodos();
+      if (detail.action === 'add') {
+        toast.success("Task added via chatbot!");
+      } else if (detail.action === 'complete') {
+        toast.success("Task completed via chatbot!");
+      } else if (detail.action === 'delete') {
+        toast.info("Task deleted via chatbot");
+      } else {
+        toast.success("Task updated via chatbot!");
+      }
+    });
+    return cleanup;
+  }, [fetchTodos]);
 
   const handleAddTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!taskTitle.trim()) return;
     const token = localStorage.getItem("token");
-    const res = await fetch(`http://localhost:8000/api/${userId}/tasks`, {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/${userId}/tasks`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
       body: JSON.stringify({
@@ -69,7 +87,7 @@ export default function Dashboard() {
 
   const handleDelete = async (taskId: number) => {
     const token = localStorage.getItem("token");
-    const res = await fetch(`http://localhost:8000/api/${userId}/tasks/${taskId}`, {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/${userId}/tasks/${taskId}`, {
       method: "DELETE",
       headers: { "Authorization": `Bearer ${token}` }
     });
@@ -78,7 +96,7 @@ export default function Dashboard() {
 
   const handleToggle = async (taskId: number) => {
     const token = localStorage.getItem("token");
-    const res = await fetch(`http://localhost:8000/api/${userId}/tasks/${taskId}/toggle`, {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/${userId}/tasks/${taskId}/toggle`, {
       method: "PATCH",
       headers: { "Authorization": `Bearer ${token}` }
     });
@@ -89,7 +107,7 @@ export default function Dashboard() {
     const newTitle = prompt("Edit your task title:", currentTitle);
     if (newTitle === null || newTitle.trim() === "" || newTitle === currentTitle) return;
     const token = localStorage.getItem("token");
-    const res = await fetch(`http://localhost:8000/api/${userId}/tasks/${taskId}`, {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/${userId}/tasks/${taskId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
       body: JSON.stringify({ title: newTitle.trim(), description: "" })

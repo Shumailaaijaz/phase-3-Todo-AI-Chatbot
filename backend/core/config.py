@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""  # Required for AI chatbot features
     OPENAI_MODEL: str = "gpt-4o-mini"  # Default model (cost-effective)
 
+    # Groq (Free alternative - OpenAI compatible)
+    GROQ_API_KEY: str = ""
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
+
     @field_validator("DATABASE_URL")
     @classmethod
     def validate_database_url(cls, v: str) -> str:

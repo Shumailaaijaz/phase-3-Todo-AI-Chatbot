@@ -29,10 +29,10 @@ class ChatAgentRunner:
             mcp_server=self._mcp_server,
         )
 
-    def process(self, messages: List[Dict[str, Any]], user_id: str = "", conversation_id: str = "") -> str:
-        """Sync wrapper - runs the async agent and returns response text.
+    def process(self, messages: List[Dict[str, Any]], user_id: str = "", conversation_id: str = "") -> Dict[str, Any]:
+        """Sync wrapper - runs the async agent and returns response with tool calls.
 
-        Always returns a response string, even for errors (user-friendly error messages).
+        Returns dict with 'response' and 'tool_calls' keys.
         """
         import asyncio
         from agent.context import AgentContext, AgentResult
@@ -50,7 +50,10 @@ class ChatAgentRunner:
                 break
 
         if not last_message:
-            return "I didn't understand your request. Could you please try again?"
+            return {
+                "response": "I didn't understand your request. Could you please try again?",
+                "tool_calls": []
+            }
 
         try:
             import concurrent.futures
@@ -59,17 +62,33 @@ class ChatAgentRunner:
                     asyncio.run, self._runner.run(context, last_message)
                 ).result(timeout=60)  # 60 second timeout
 
-            # Return the response regardless of success/failure
-            # The runner returns user-friendly error messages
-            return result.response
+            # Convert tool calls to response format
+            tool_calls = [
+                {
+                    "tool_name": tc.tool_name,
+                    "status": "completed" if result.success else "error",
+                    "summary": f"{tc.tool_name.replace('_', ' ').title()}"
+                }
+                for tc in result.tool_calls
+            ]
+
+            return {
+                "response": result.response,
+                "tool_calls": tool_calls
+            }
 
         except concurrent.futures.TimeoutError:
             logger.error("Agent execution timed out after 60 seconds")
-            return "Request timed out. Please try again."
+            return {
+                "response": "Request timed out. Please try again.",
+                "tool_calls": []
+            }
         except Exception as e:
             logger.exception(f"Agent interface error: {e}")
-            # Return the error message to the user for debugging
-            return f"Error: {str(e)}"
+            return {
+                "response": f"Error: {str(e)}",
+                "tool_calls": []
+            }
 
 
 _agent_instance: Optional[ChatAgentRunner] = None
